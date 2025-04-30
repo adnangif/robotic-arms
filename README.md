@@ -2,15 +2,24 @@
 
 A Python Tkinter application that simulates a robot arm with three joints that can pick up objects and place them in a target zone.
 
+## Project Structure
+
+- `main.py` - Entry point for the application
+- `robot_arm.py` - Contains the RobotArm class that handles the arm's kinematics and drawing
+- `objects.py` - Contains the Object class for managing objects that can be picked up
+- `simulator.py` - Contains the RobotArmSimulator class that controls the main application window
+
 ## Features
 
-- Three-jointed robot arm with forward kinematics
-- Configurable arm segments 
-- Gripper that can open and close to pick up objects
-- Multiple objects to be moved
-- Target zone (blue box) where objects should be placed
+- Visually detailed robot arm with 4:3:1 segment length proportions
+- Modern arm design with articulated joints
+- Enhanced gripper with animated prongs
+- Multiple objects with various shapes (circles, squares, diamonds, triangles)
+- Dark-themed interface with modern color scheme
+- Target zone (dark blue box) where objects should be placed
 - Controls via buttons and keyboard shortcuts
 - Score tracking
+- Reference grid for better spatial awareness
 
 ## Controls
 
@@ -50,7 +59,10 @@ python main.py
 
 ## Implementation Details
 
-- The robot arm uses a simple forward kinematics system
+- The robot arm uses a forward kinematics system
+- Arm segments follow a 4:3:1 length proportion similar to industrial robots
+- All objects are placed within the reach of the robot arm
+- Dark theme with orange/blue accent colors
 - Collision detection between the gripper and objects
 - Object placement verification in the target zone
 - Visual feedback for successful placement (gold outline) 
