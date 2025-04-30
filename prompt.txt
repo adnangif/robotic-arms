@@ -1,0 +1,1 @@
+generate a project using python tkinter, use main.py as main entry point. There will be a robot arm with three joints, there will be also multiple objects. the robot arm will pick each object and take that into another region, indicated by a blue box. first generate a step by step guide. then follow the guide to generate the code.
