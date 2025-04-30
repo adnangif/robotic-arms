@@ -14,6 +14,8 @@ class RobotArm:
         self.gripper = None
         self.gripper_closed = False
         self.holding_object = None
+        self.obstacles = []  # Store obstacles for collision detection
+        self.collision_warning = None  # Store warning text
         
         # Colors for the arm
         self.colors = {
@@ -181,6 +183,28 @@ class RobotArm:
         return joints
     
     def set_angles(self, angles):
+        # Check for collisions with obstacles
+        if self.check_collision(angles):
+            # Show collision warning
+            if self.collision_warning:
+                self.canvas.delete(self.collision_warning)
+                
+            self.collision_warning = self.canvas.create_text(
+                self.base_x + 10, self.base_y - 40,
+                text="OBSTACLE DETECTED!",
+                fill="#F38BA8",
+                font=("Arial", 12, "bold")
+            )
+            
+            # Schedule warning to disappear after 1.5 seconds
+            self.canvas.after(1500, self.clear_warning)
+            
+            return  # Don't move if collision
+        
+        # Clear any existing warning
+        self.clear_warning()
+        
+        # Update angles if no collision
         self.angles = angles
         self.draw()
         
@@ -189,8 +213,59 @@ class RobotArm:
             tip_x, tip_y = self.joints[-1]
             self.holding_object.move_to(tip_x, tip_y)
     
+    def set_obstacles(self, obstacles):
+        self.obstacles = obstacles
+    
+    def check_collision(self, new_angles):
+        # Store current angles
+        current_angles = self.angles.copy()
+        
+        # Temporarily set new angles to calculate new positions
+        self.angles = new_angles
+        new_joints = self.calculate_joints()
+        
+        # Restore original angles
+        self.angles = current_angles
+        
+        # Check for collisions between arm segments and obstacles
+        for i in range(len(new_joints) - 1):
+            x1, y1 = new_joints[i]
+            x2, y2 = new_joints[i + 1]
+            
+            for obstacle in self.obstacles:
+                if obstacle.check_collision(x1, y1, x2, y2):
+                    return True  # Collision detected
+        
+        return False  # No collision
+    
     def move_joint(self, joint_idx, delta):
         if 0 <= joint_idx < len(self.angles):
+            # Calculate new angles
+            new_angles = self.angles.copy()
+            new_angles[joint_idx] += delta
+            
+            # Check for collisions with obstacles
+            if self.check_collision(new_angles):
+                # Show collision warning
+                if self.collision_warning:
+                    self.canvas.delete(self.collision_warning)
+                    
+                self.collision_warning = self.canvas.create_text(
+                    self.base_x + 10, self.base_y - 40,
+                    text="OBSTACLE DETECTED!",
+                    fill="#F38BA8",
+                    font=("Arial", 12, "bold")
+                )
+                
+                # Schedule warning to disappear after 1.5 seconds
+                self.canvas.after(1500, self.clear_warning)
+                
+                return  # Don't move if collision
+            
+            # Clear any existing warning
+            self.clear_warning()
+            
+            # Update angles if no collision
             self.angles[joint_idx] += delta
             self.draw()
             
@@ -198,6 +273,11 @@ class RobotArm:
             if self.holding_object and self.gripper_closed:
                 tip_x, tip_y = self.joints[-1]
                 self.holding_object.move_to(tip_x, tip_y)
+    
+    def clear_warning(self):
+        if self.collision_warning:
+            self.canvas.delete(self.collision_warning)
+            self.collision_warning = None
     
     def toggle_gripper(self, objects):
         self.gripper_closed = not self.gripper_closed

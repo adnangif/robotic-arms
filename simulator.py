@@ -4,10 +4,63 @@ import random
 from robot_arm import RobotArm
 from objects import Object
 
+class Obstacle:
+    def __init__(self, canvas, x, y, size=30):
+        self.canvas = canvas
+        self.x = x
+        self.y = y
+        self.size = size
+        
+        # Create a square obstacle
+        self.id = self.canvas.create_rectangle(
+            x - size, y - size, x + size, y + size,
+            fill="#F38BA8", outline="#FFFFFF", width=2
+        )
+    
+    def check_collision(self, x1, y1, x2, y2):
+        # Check if line segment from (x1,y1) to (x2,y2) intersects with this obstacle
+        # Using simplified rectangle-line intersection
+        rect_left = self.x - self.size
+        rect_right = self.x + self.size
+        rect_top = self.y - self.size
+        rect_bottom = self.y + self.size
+        
+        # Check if either endpoint is inside the rectangle
+        if (rect_left <= x1 <= rect_right and rect_top <= y1 <= rect_bottom) or \
+           (rect_left <= x2 <= rect_right and rect_top <= y2 <= rect_bottom):
+            return True
+            
+        # Check if line intersects any of the rectangle's edges
+        # Line equation: y = mx + b
+        if x2 - x1 != 0:  # Avoid division by zero
+            m = (y2 - y1) / (x2 - x1)
+            b = y1 - m * x1
+            
+            # Calculate y-coordinates where line intersects with left and right edges
+            left_y = m * rect_left + b
+            right_y = m * rect_right + b
+            
+            # Check if these intersections are within the rectangle's y-range
+            if (rect_top <= left_y <= rect_bottom and min(x1, x2) <= rect_left <= max(x1, x2)) or \
+               (rect_top <= right_y <= rect_bottom and min(x1, x2) <= rect_right <= max(x1, x2)):
+                return True
+                
+            # Calculate x-coordinates where line intersects with top and bottom edges
+            if m != 0:  # Avoid division by zero
+                top_x = (rect_top - b) / m
+                bottom_x = (rect_bottom - b) / m
+                
+                # Check if these intersections are within the rectangle's x-range
+                if (rect_left <= top_x <= rect_right and min(y1, y2) <= rect_top <= max(y1, y2)) or \
+                   (rect_left <= bottom_x <= rect_right and min(y1, y2) <= rect_bottom <= max(y1, y2)):
+                    return True
+        
+        return False
+
 class RobotArmSimulator:
     def __init__(self, root):
         self.root = root
-        self.root.title("RoboManipulator 3000")
+        self.root.title("Robot Arm")
         self.root.configure(bg="#1E1E2E")
         
         # Create canvas with modern color scheme
@@ -23,9 +76,6 @@ class RobotArmSimulator:
         
         # Create reference grid
         self.draw_grid()
-        
-        # Create robot arm
-        self.arm = RobotArm(self.canvas, 400, 300)
         
         # Create target zone with new color
         self.target_x = 600
@@ -47,6 +97,14 @@ class RobotArmSimulator:
             font=("Arial", 10, "bold")
         )
         
+        # Create obstacles
+        self.obstacles = []
+        self.create_obstacles(3)  # Create 3 obstacles
+        
+        # Create robot arm
+        self.arm = RobotArm(self.canvas, 400, 300)
+        self.arm.set_obstacles(self.obstacles)  # Pass obstacles to the arm
+        
         # Create objects
         self.objects = []
         self.create_objects(5)
@@ -59,7 +117,7 @@ class RobotArmSimulator:
         
         # Status label
         self.status_var = tk.StringVar()
-        self.status_var.set("HOTKEYS: 1/2/3 + SHIFT = ROTATE JOINTS, G = GRIPPER")
+        self.status_var.set("KEYS: 1/2/3 = CLOCKWISE, Q/W/E = COUNTERCLOCKWISE, G = GRIPPER")
         self.status_label = tk.Label(self.control_panel, textvariable=self.status_var, 
                                     wraplength=190, justify=tk.LEFT, bg="#1E1E2E", fg="#CDD6F4",
                                     font=("Arial", 8))
@@ -73,6 +131,28 @@ class RobotArmSimulator:
                                    bg="#313244", fg="#CDD6F4", font=("Arial", 12, "bold"),
                                    padx=10, pady=5, relief="flat")
         self.score_label.pack(side=tk.BOTTOM, pady=10, fill=tk.X)
+    
+    def create_obstacles(self, count):
+        max_reach = 350  # Approximate reach of the arm
+        
+        for i in range(count):
+            # Place obstacles in various positions around the arm's reach
+            angle = random.uniform(0, 2 * math.pi)
+            distance = random.uniform(150, 350)  # Between inner and outer reach
+            
+            x = self.canvas_width / 2 + distance * math.cos(angle)
+            y = self.canvas_height / 2 + distance * math.sin(angle)
+            
+            # Make sure obstacles don't overlap with the target zone
+            while (self.target_x - 50 <= x <= self.target_x + self.target_width + 50 and
+                   self.target_y - 50 <= y <= self.target_y + self.target_height + 50):
+                angle = random.uniform(0, 2 * math.pi)
+                distance = random.uniform(150, 350)
+                x = self.canvas_width / 2 + distance * math.cos(angle)
+                y = self.canvas_height / 2 + distance * math.sin(angle)
+            
+            # Create obstacle
+            self.obstacles.append(Obstacle(self.canvas, x, y))
     
     def draw_grid(self):
         # Draw faint grid lines for reference
@@ -92,12 +172,23 @@ class RobotArmSimulator:
         max_reach = self.arm.get_max_reach() * 0.7  # Stay within 70% of max reach
         
         for i in range(count):
-            # Create objects within arm's reach, in a semicircle in front of the arm
-            angle = random.uniform(-math.pi/2, math.pi/2)  # Semicircle in front 
-            distance = random.uniform(max_reach * 0.3, max_reach * 0.6)  # Within comfortable reach
+            # Create objects within arm's reach, avoiding obstacles
+            valid_position = False
+            x, y = 0, 0
             
-            x = self.arm.base_x + distance * math.cos(angle)
-            y = self.arm.base_y + distance * math.sin(angle)
+            while not valid_position:
+                angle = random.uniform(-math.pi/2, math.pi/2)  # Semicircle in front 
+                distance = random.uniform(max_reach * 0.3, max_reach * 0.6)  # Within comfortable reach
+                
+                x = self.arm.base_x + distance * math.cos(angle)
+                y = self.arm.base_y + distance * math.sin(angle)
+                
+                # Check if this position is clear of obstacles
+                valid_position = True
+                for obstacle in self.obstacles:
+                    if math.sqrt((x - obstacle.x)**2 + (y - obstacle.y)**2) < obstacle.size + 20:
+                        valid_position = False
+                        break
             
             color = random.choice(colors)
             self.objects.append(Object(self.canvas, x, y, color))
@@ -161,6 +252,32 @@ class RobotArmSimulator:
                                font=("Arial", 9, "bold"), padx=10, pady=5)
         reset_button.pack(pady=10, fill=tk.X)
         
+        # Mission briefing with obstacles info
+        mission_frame = tk.Frame(self.control_panel, bg="#313244", padx=10, pady=10)
+        mission_frame.pack(fill=tk.X, pady=10)
+        
+        mission_title = tk.Label(mission_frame, text="MISSION BRIEFING", 
+                              bg="#313244", fg="#FAB387", font=("Arial", 10, "bold"))
+        mission_title.pack(anchor=tk.W)
+        
+        separator3 = tk.Frame(mission_frame, height=1, bg="#45475A")
+        separator3.pack(fill=tk.X, pady=5)
+        
+        instructions = "1. Control the robotic arm\n" \
+                     "2. AVOID RED OBSTACLES\n" \
+                     "3. Pick up all objects\n" \
+                     "4. Move them to drop zone\n" \
+                     "5. Complete the mission"
+        
+        tk.Label(mission_frame, text=instructions, 
+              justify=tk.LEFT, wraplength=190, bg="#313244", fg="#CDD6F4",
+              font=("Arial", 9)).pack(pady=5)
+        
+        # Obstacle info
+        obstacle_info = f"OBSTACLES: {len(self.obstacles)}"
+        obstacle_label = tk.Label(mission_frame, text=obstacle_info, 
+                               bg="#313244", fg="#F38BA8", font=("Arial", 9, "bold"))
+        obstacle_label.pack(anchor=tk.W, pady=5)
     
     def reset_arm(self):
         self.arm.set_angles([0, 0, 0])
@@ -184,20 +301,17 @@ class RobotArmSimulator:
         if key == "g":
             self.toggle_gripper()
         elif key == "1":
-            if event.keysym == "1":  # Lowercase
-                self.arm.move_joint(0, 0.1)
-            else:  # Shift+1
-                self.arm.move_joint(0, -0.1)
+            self.arm.move_joint(0, 0.1)   # Clockwise
+        elif key == "q":
+            self.arm.move_joint(0, -0.1)  # Counterclockwise
         elif key == "2":
-            if event.keysym == "2":  # Lowercase
-                self.arm.move_joint(1, 0.1)
-            else:  # Shift+2
-                self.arm.move_joint(1, -0.1)
+            self.arm.move_joint(1, 0.1)   # Clockwise
+        elif key == "w":
+            self.arm.move_joint(1, -0.1)  # Counterclockwise
         elif key == "3":
-            if event.keysym == "3":  # Lowercase
-                self.arm.move_joint(2, 0.1)
-            else:  # Shift+3
-                self.arm.move_joint(2, -0.1)
+            self.arm.move_joint(2, 0.1)   # Clockwise
+        elif key == "e":
+            self.arm.move_joint(2, -0.1)  # Counterclockwise
         elif key == "up":
             current_joint = 0  # Default to first joint
             self.arm.move_joint(current_joint, 0.1)
