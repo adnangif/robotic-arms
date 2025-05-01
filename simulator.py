@@ -256,7 +256,7 @@ class RobotArmSimulator:
         mission_frame = tk.Frame(self.control_panel, bg="#313244", padx=10, pady=10)
         mission_frame.pack(fill=tk.X, pady=10)
         
-        mission_title = tk.Label(mission_frame, text="MISSION BRIEFING", 
+        mission_title = tk.Label(mission_frame, text="Instructions", 
                               bg="#313244", fg="#FAB387", font=("Arial", 10, "bold"))
         mission_title.pack(anchor=tk.W)
         
